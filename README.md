@@ -47,8 +47,6 @@ Aplikasi ini dibuat menggunakan **Flutter** dan terhubung dengan **Django REST A
 7. **Forum & Notifikasi**
    Forum diskusi & pengingat pertandingan.
 
-## 👤 **Peran / Aktor Pengguna**
-
 ### **1. Pengguna Umum (Customer/Fans)**
 
 * Registrasi & login
