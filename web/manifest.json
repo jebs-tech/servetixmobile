@@ -1,6 +1,6 @@
 {
-    "name": "servetixmobile",
-    "short_name": "servetixmobile",
+    "name": "servetix",
+    "short_name": "servetix",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
