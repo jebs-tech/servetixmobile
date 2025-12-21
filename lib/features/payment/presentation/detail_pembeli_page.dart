@@ -178,11 +178,17 @@ class _DetailPembeliPageState extends State<DetailPembeliPage> {
         });
 
         if (result['status'] == 'success') {
+          // Pastikan order_id dikonversi ke String
+          final orderId = result['order_id']?.toString() ?? '';
+          if (orderId.isEmpty) {
+            throw Exception('Order ID tidak ditemukan dalam response');
+          }
+          
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => DetailPembayaranPage(
-                orderId: result['order_id'],
+                orderId: orderId,
               ),
             ),
           );

@@ -52,13 +52,13 @@ class Pembelian {
 
   factory Pembelian.fromJson(Map<String, dynamic> json) {
     return Pembelian(
-      orderId: json['order_id'],
-      namaLengkapPembeli: json['nama_lengkap_pembeli'],
-      email: json['email'],
-      nomorTelepon: json['nomor_telepon'],
-      totalPrice: json['total_price'],
-      status: json['status'],
-      statusDisplay: json['status_display'],
+      orderId: json['order_id']?.toString() ?? '',
+      namaLengkapPembeli: json['nama_lengkap_pembeli'] ?? '',
+      email: json['email'] ?? '',
+      nomorTelepon: json['nomor_telepon'] ?? '',
+      totalPrice: json['total_price'] ?? 0,
+      status: json['status'] ?? '',
+      statusDisplay: json['status_display'] ?? '',
       metodePembayaran: json['metode_pembayaran'],
       tanggalPembelian: json['tanggal_pembelian'],
       match: json['match'] != null ? MatchInfo.fromJson(json['match']) : null,
@@ -144,12 +144,12 @@ class PaymentResponse {
     }
 
     return PaymentResponse(
-      status: json['status'],
+      status: json['status'] ?? '',
       message: json['message'],
-      orderId: json['data']?['order_id'],
-      matchTitle: json['data']?['match_title'],
-      matchVenue: json['data']?['match_venue'],
-      matchDate: json['data']?['match_date'],
+      orderId: json['data']?['order_id']?.toString(),
+      matchTitle: json['data']?['match_title']?.toString(),
+      matchVenue: json['data']?['match_venue']?.toString(),
+      matchDate: json['data']?['match_date']?.toString(),
       tickets: ticketsList,
     );
   }
