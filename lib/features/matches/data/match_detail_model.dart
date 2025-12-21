@@ -1,3 +1,5 @@
+// lib/features/matches/data/match_detail_model.dart
+
 class MatchDetail {
   final int id;
   final String teamA;
@@ -5,8 +7,6 @@ class MatchDetail {
   final String venue;
   final DateTime startTime;
   final String description;
-
-  // OPTIONAL / sementara (karena API belum lengkap)
   final String venueAddress;
   final int priceFrom;
 
@@ -29,16 +29,12 @@ class MatchDetail {
       venue: json['venue'],
       startTime: DateTime.parse(json['start_time']),
       description: json['description'] ?? '',
-      venueAddress: json['venue_address'] ?? '-', // fallback aman
+      venueAddress: json['venue_address'] ?? '-',
       priceFrom: json['price_from'] ?? 0,
     );
   }
 
-  // ===== GETTERS UNTUK UI =====
-
-  String get formattedDate {
-    return '${startTime.day}/${startTime.month}/${startTime.year}';
-  }
+  String get formattedDate => '${startTime.day}/${startTime.month}/${startTime.year}';
 
   String get formattedTime {
     final hour = startTime.hour.toString().padLeft(2, '0');
@@ -46,7 +42,5 @@ class MatchDetail {
     return '$hour:$minute';
   }
 
-  String get title {
-    return '$teamA vs $teamB';
-  }
+  String get title => '$teamA vs $teamB';
 }

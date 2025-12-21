@@ -1,16 +1,31 @@
 import 'package:flutter/material.dart';
-import '../data/checkout_api.dart';
-import '../data/models/passenger_model.dart';
-import '../data/models/seat_model.dart';
+import 'dart:convert';
+import 'package:intl/intl.dart';
+import '../../matches/data/match_api.dart';
+import '../../matches/data/match_detail_model.dart';
+
+// Model sederhana untuk menampung data input tiap tiket
+class PassengerInput {
+  TextEditingController nameController = TextEditingController();
+  TextEditingController emailController = TextEditingController();
+  TextEditingController phoneController = TextEditingController();
+  String gender = ""; // "Laki-laki" atau "Perempuan"
+  String? selectedCategory;
+  int price = 0;
+  String? seatLabel; // Digunakan jika kursi sudah dipilih sebelumnya
+  int? seatId;
+
+  PassengerInput({this.selectedCategory, this.price = 0, this.seatLabel, this.seatId});
+}
 
 class CheckoutPage extends StatefulWidget {
   final int matchId;
-  final List<int> selectedSeatIds;
+  final List<int> selectedSeatIds; // Dari denah stadion
 
   const CheckoutPage({
     super.key,
     required this.matchId,
-    this.selectedSeatIds = const [],
+    required this.selectedSeatIds,
   });
 
   @override
@@ -18,216 +33,439 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  List<Passenger> passengers = [
-    Passenger(name: '', category: ''),
-  ];
+  // Konstanta Warna (Identik dengan Django/Tailwind)
+  static const Color serveNavy = Color(0xFF1A2A4B);
+  static const Color brandOrange = Color(0xFFFFA043);
+  static const Color gray50 = Color(0xFFF9FAFB);
+  static const Color gray600 = Color(0xFF4B5563);
 
-  List<Seat> seats = [];
-  bool loading = true;
+  late Future<Map<String, dynamic>> _dataFuture;
+  List<PassengerInput> _passengers = [];
+  List<dynamic> _availableCategories = [];
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSeats();
+    _dataFuture = _loadInitialData();
   }
 
-  Future<void> _loadSeats() async {
-    try {
-      seats = await CheckoutApi.fetchSeats(widget.matchId);
-    } finally {
-      setState(() => loading = false);
+  // Mengambil data Match dan Kategori sekaligus
+  Future<Map<String, dynamic>> _loadInitialData() async {
+    final match = await MatchApi().fetchMatchDetail(widget.matchId);
+    final seats = await MatchApi().fetchMatchSeats(widget.matchId);
+    
+    // Ambil daftar kategori unik dari data kursi untuk dropdown
+    final categories = <String, int>{};
+    for (var s in seats) {
+      categories[s['category']] = s['price'];
     }
+
+    _availableCategories = categories.entries
+        .map((e) => {'name': e.key, 'price': e.value})
+        .toList();
+
+    // Inisialisasi form berdasarkan kursi yang dipilih (jika ada)
+    if (widget.selectedSeatIds.isNotEmpty) {
+      for (var sid in widget.selectedSeatIds) {
+        final seat = seats.firstWhere((s) => s['id'] == sid);
+        _passengers.add(PassengerInput(
+          selectedCategory: seat['category'],
+          price: seat['price'],
+          seatLabel: seat['label'],
+          seatId: sid,
+        ));
+      }
+    } else {
+      // Default 1 tiket kosong jika tidak ada kursi dipilih
+      _passengers.add(PassengerInput());
+    }
+
+    return {'match': match, 'seats': seats};
   }
 
-  int get totalPrice {
-    if (widget.selectedSeatIds.isNotEmpty) {
-      return widget.selectedSeatIds.fold(0, (sum, id) {
-        final seat = seats.firstWhere((s) => s.id == id);
-        return sum + seat.price;
+  int get _totalPrice {
+    return _passengers.fold(0, (sum, p) => sum + p.price);
+  }
+
+  void _addTicket() {
+    setState(() {
+      _passengers.add(PassengerInput());
+    });
+  }
+
+  void _removeLastTicket() {
+    if (_passengers.length > 1) {
+      setState(() {
+        _passengers.removeLast();
       });
     }
-
-    return passengers.fold(0, (sum, p) {
-      final seat = seats.firstWhere(
-        (s) => s.category == p.category,
-        orElse: () => Seat(
-          id: 0,
-          label: '',
-          category: '',
-          price: 0,
-          color: '',
-        ),
-      );
-      return sum + seat.price;
-    });
   }
 
-  void addPassenger() {
-    setState(() {
-      passengers.add(Passenger(name: '', category: ''));
-    });
-  }
-
-  void removePassenger() {
-    if (passengers.length <= 1) return;
-    setState(() {
-      passengers.removeLast();
-    });
-  }
-
-  Future<void> submit() async {
-    final data = passengers.map((e) => e.toJson()).toList();
-
-    if (widget.selectedSeatIds.isNotEmpty) {
-      await CheckoutApi.bookSeats(
-        matchId: widget.matchId,
-        seatIds: widget.selectedSeatIds,
-        passengers: data,
-      );
-    } else {
-      await CheckoutApi.bookQuantity(
-        matchId: widget.matchId,
-        passengers: data,
-      );
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Booking berhasil')),
-      );
-    }
+  String _formatCurrency(int amount) {
+    return NumberFormat.currency(locale: 'id', symbol: 'Rp', decimalDigits: 0)
+        .format(amount);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildPassengerSection(),
-          const SizedBox(height: 24),
-          _buildSummaryCard(),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: submit,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+      backgroundColor: const Color(0xFFF3F4F6), // gray-100
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _dataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: brandOrange));
+          }
+          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
+
+          final MatchDetail match = snapshot.data!['match'];
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // --- Tombol Kembali ---
+                      TextButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back, size: 16, color: serveNavy),
+                        label: Text("Kembali ke ${match.title}",
+                            style: const TextStyle(color: serveNavy, fontSize: 14)),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // --- Judul Halaman ---
+                      const Text(
+                        "Detail Pembeli",
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: serveNavy),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // --- Card Utama (Form) ---
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            )
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            // List Form Penumpang
+                            ..._passengers.asMap().entries.map((entry) {
+                              return _buildPassengerForm(entry.key, entry.value);
+                            }).toList(),
+
+                            const SizedBox(height: 16),
+
+                            // Tombol Tambah/Hapus (Hanya muncul jika tidak pilih kursi spesifik)
+                            if (widget.selectedSeatIds.isEmpty)
+                              Row(
+                                children: [
+                                  _actionButton(
+                                    label: "➕ Tambah Tiket",
+                                    onPressed: _addTicket,
+                                    isPrimary: true,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _actionButton(
+                                    label: "🗑️ Hapus",
+                                    onPressed: _removeLastTicket,
+                                    isPrimary: false,
+                                  ),
+                                  const Spacer(),
+                                  Text("${_passengers.length} tiket",
+                                      style: const TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+
+                            const SizedBox(height: 24),
+
+                            // --- Ringkasan Harga ---
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: gray50,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Flexible(
+                                        child: Text(
+                                          "Harga per tiket (berdasarkan kategori)",
+                                          style: TextStyle(fontSize: 12, color: gray600),
+                                        ),
+                                      ),
+                                      Text(
+                                        _passengers.length == 1 
+                                            ? _formatCurrency(_passengers[0].price)
+                                            : "Terlampir",
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text("Total",
+                                          style: TextStyle(color: gray600)),
+                                      Text(_formatCurrency(_totalPrice),
+                                          style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 32),
+
+                            // --- Tombol Submit ---
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting ? null : _submitCheckout,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: brandOrange,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(100)),
+                                  elevation: 0,
+                                ),
+                                child: _isSubmitting
+                                    ? const CircularProgressIndicator(color: Colors.white)
+                                    : const Text("Lanjutkan Pembayaran",
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: const Text('Bayar Sekarang'),
-          )
+          );
+        },
+      ),
+    );
+  }
+
+  // Widget Form per Penumpang
+  Widget _buildPassengerForm(int index, PassengerInput input) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Tiket #${index + 1}",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(
+                input.seatLabel != null 
+                    ? "Kursi: ${input.seatLabel}" 
+                    : "Isilah data pembeli",
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildTextField("Nama Lengkap", input.nameController, "Nama sesuai KTP"),
+          const SizedBox(height: 12),
+          _buildTextField("Email (opsional)", input.emailController, "example@mail.com"),
+          const SizedBox(height: 12),
+          _buildTextField("Nomor Telepon (opsional)", input.phoneController, "0812..."),
+          const SizedBox(height: 16),
+          
+          const Text("Jenis Kelamin", 
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _genderButton("Laki-laki", input, index),
+              const SizedBox(width: 8),
+              _genderButton("Perempuan", input, index),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          const Text("Kategori Tempat Duduk", 
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          
+          // Dropdown Kategori
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: input.selectedCategory,
+                hint: const Text("Pilih kategori"),
+                disabledHint: Text(input.selectedCategory ?? ""),
+                // Jika sudah pilih kursi di denah, dropdown dikunci (disabled)
+                onChanged: input.seatId != null ? null : (val) {
+                  setState(() {
+                    input.selectedCategory = val;
+                    input.price = _availableCategories.firstWhere((c) => c['name'] == val)['price'];
+                  });
+                },
+                items: _availableCategories.map((cat) {
+                  return DropdownMenuItem<String>(
+                    value: cat['name'],
+                    child: Text("${cat['name']} — ${_formatCurrency(cat['price'])}"),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPassengerSection() {
+  // Helper UI Components
+  Widget _buildTextField(String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Data Penonton',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        ...List.generate(passengers.length, (index) {
-          final p = passengers[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Lengkap',
-                    ),
-                    onChanged: (v) => p.name = v,
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                    ),
-                    onChanged: (v) => p.email = v,
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Kategori Tiket',
-                    ),
-                    items: seats
-                        .map(
-                          (s) => DropdownMenuItem(
-                            value: s.category,
-                            child: Text('${s.category} — Rp ${s.price}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => p.category = v ?? '',
-                  ),
-                ],
-              ),
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hint,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
             ),
-          );
-        }),
-        Row(
-          children: [
-            TextButton.icon(
-              onPressed: addPassenger,
-              icon: const Icon(Icons.add),
-              label: const Text('Tambah Tiket'),
-            ),
-            const SizedBox(width: 8),
-            if (passengers.length > 1)
-              TextButton.icon(
-                onPressed: removePassenger,
-                icon: const Icon(Icons.remove),
-                label: const Text('Hapus'),
-              ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard() {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Ringkasan Pembayaran',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total'),
-                Text(
-                  'Rp $totalPrice',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ],
+  Widget _genderButton(String value, PassengerInput input, int index) {
+    bool isSelected = input.gender == value;
+    return Expanded(
+      child: OutlinedButton(
+        onPressed: () => setState(() => input.gender = value),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isSelected ? brandOrange : Colors.white,
+          side: BorderSide(color: isSelected ? brandOrange : Colors.grey.shade300),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
         ),
+        child: Text(value, 
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.black,
+              fontSize: 13,
+            )),
       ),
     );
+  }
+
+  Widget _actionButton({required String label, required VoidCallback onPressed, required bool isPrimary}) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isPrimary ? brandOrange : Colors.white,
+        side: BorderSide(color: isPrimary ? brandOrange : Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+      child: Text(label, style: TextStyle(color: isPrimary ? Colors.white : Colors.black, fontSize: 12)),
+    );
+  }
+
+  // Logika Submit ke API
+  Future<void> _submitCheckout() async {
+    // Validasi sederhana
+    for (var p in _passengers) {
+      if (p.nameController.text.isEmpty || p.selectedCategory == null || p.gender.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Mohon lengkapi data semua tiket.")),
+        );
+        return;
+      }
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Menyiapkan body sesuai logic Django
+      final List<Map<String, dynamic>> passengerData = _passengers.map((p) => {
+        'name': p.nameController.text,
+        'email': p.emailController.text,
+        'phone': p.phoneController.text,
+        'gender': p.gender,
+        'category': p.selectedCategory,
+      }).toList();
+
+      // Pilih endpoint berdasarkan apakah ada seat_ids
+      bool success = false;
+      if (widget.selectedSeatIds.isNotEmpty) {
+        // Panggil api_book (BookWithSeatsAPI)
+        // success = await MatchApi().bookWithSeats(...);
+      } else {
+        // Panggil api_book_quantity (BookByQuantityAPI)
+        // success = await MatchApi().bookByQuantity(...);
+      }
+
+      // Simulasi sukses
+      await Future.delayed(const Duration(seconds: 2));
+      success = true;
+
+      if (success && mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Berhasil!"),
+            content: const Text("Pesanan Anda telah berhasil dibuat."),
+            actions: [
+              TextButton(onPressed: () => Navigator.popUntil(context, (route) => route.isFirst), child: const Text("OK"))
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Terjadi kesalahan: $e")));
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
   }
 }
