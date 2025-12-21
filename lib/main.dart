@@ -3,6 +3,12 @@ import 'package:servetixmobile/auth/login_page.dart';
 import 'package:servetixmobile/features/match/screens/menu.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:pbp_django_auth/pbp_django_auth.dart'; // <--- PAKAI INI
+import 'package:servetixmobile/auth/login_page.dart';
+import 'package:servetixmobile/utils/toast.dart' show globalNavigatorKey;
+
+// Global NavigatorKey untuk akses context dari mana saja
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   runApp(const MyApp());
@@ -13,7 +19,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Menggunakan Provider untuk menyediakan CookieRequest ke seluruh aplikasi
+    // Assign navigatorKey ke globalNavigatorKey untuk digunakan di Toast
+    globalNavigatorKey = navigatorKey;
+    
     return Provider(
       create: (_) {
         CookieRequest request = CookieRequest();
