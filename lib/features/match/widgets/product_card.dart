@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:servetixmobile/features/match/screens/match_list.dart';
+import 'package:servetixmobile/dashboard_page/dashboard_page.dart';
+import 'package:servetixmobile/forums/forums_list_page.dart';
 
 class ItemHomepage {
   final String name;
@@ -42,6 +44,18 @@ class ProductCard extends StatelessWidget {
       );
     }
   }
+  if (item.name == "Forum Penggemar") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ForumsListPage()),
+      );
+    }
+    if (item.name == "Riwayat Tiket") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    }
 
   @override
   Widget build(BuildContext context) {
