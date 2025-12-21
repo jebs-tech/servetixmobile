@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:servetix/auth/login_page.dart'; // Pastikan path benar
+import 'package:servetix/utils/toast.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -199,18 +200,12 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_usernameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Username, Email, dan Password wajib diisi!"),
-        backgroundColor: Colors.red,
-      ));
+      Toast.error("Username, Email, dan Password wajib diisi!");
       return;
     }
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Konfirmasi password tidak cocok!"),
-        backgroundColor: Colors.red,
-      ));
+      Toast.error("Konfirmasi password tidak cocok!");
       return;
     }
 
@@ -233,24 +228,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (mounted) {
         if (response['status'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Akun berhasil dibuat! Silakan Login."),
-            backgroundColor: Colors.green,
-          ));
+          Toast.success("Akun berhasil dibuat! Silakan Login.");
           Navigator.pop(context); // Balik ke Login
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(response['message'] ?? "Gagal membuat akun."),
-            backgroundColor: Colors.red,
-          ));
+          Toast.error(response['message'] ?? "Gagal membuat akun.");
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Terjadi kesalahan: $e"),
-          backgroundColor: Colors.red,
-        ));
+        Toast.error("Terjadi kesalahan: $e");
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

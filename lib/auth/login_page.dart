@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
-import 'package:servetix/dashboard_page/dashboard_page.dart'; // Sesuaikan path
+import 'package:servetix/dashboard_page/dashboard_page.dart';
+import 'package:servetix/utils/toast.dart'; // Sesuaikan path
 import 'package:servetix/auth/register_page.dart';   // Sesuaikan path
 
 class LoginPage extends StatefulWidget {
@@ -208,7 +209,7 @@ class _LoginPageState extends State<LoginPage> {
     String password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Isi semua field!"), backgroundColor: Colors.red));
+      Toast.error("Isi semua field!");
       return;
     }
 
@@ -229,25 +230,16 @@ class _LoginPageState extends State<LoginPage> {
             context,
             MaterialPageRoute(builder: (context) => const DashboardPage()),
           );
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Login Berhasil!"),
-            backgroundColor: Colors.green,
-          ));
+          Toast.success("Login Berhasil!");
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(response['message'] ?? "Login Gagal"),
-            backgroundColor: Colors.red,
-          ));
+          Toast.error(response['message'] ?? "Login Gagal");
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Koneksi gagal. Cek server Django."),
-          backgroundColor: Colors.red,
-        ));
+        Toast.error("Koneksi gagal. Cek server Django.");
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
