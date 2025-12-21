@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/seat_model.dart';
+import './models/seat_model.dart';
 
 class CheckoutService {
   static const baseUrl = 'http://localhost:8000';
