@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Tambahan untuk context.read
+import 'package:pbp_django_auth/pbp_django_auth.dart'; // Tambahan untuk CookieRequest
 
 import '../data/match_api.dart';
 import '../data/match_detail_model.dart';
@@ -32,10 +34,13 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
   @override
   void initState() {
     super.initState();
-    // Mengambil data detail dan data kursi secara paralel
+    // Mengambil instance CookieRequest dari Provider
+    final request = context.read<CookieRequest>();
+    
+    // Mengambil data detail dan data kursi secara paralel dengan menyertakan request
     _combinedFuture = Future.wait([
-      MatchApi().fetchMatchDetail(widget.matchId),
-      MatchApi().fetchMatchSeats(widget.matchId), // Pastikan method ini ada di match_api.dart
+      MatchApi().fetchMatchDetail(request, widget.matchId),
+      MatchApi().fetchMatchSeats(request, widget.matchId),
     ]);
   }
 
@@ -336,11 +341,11 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                               matchId: match.id, selectedSeatIds: const [])));
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: brandGold, // Berubah sesuai tombol Masuk Django
+                  backgroundColor: brandGold,
                   foregroundColor: navBlue,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100)), // Gaya rounded-full Django
+                      borderRadius: BorderRadius.circular(100)),
                 ),
                 child: const Text('Beli Tiket',
                     style: TextStyle(

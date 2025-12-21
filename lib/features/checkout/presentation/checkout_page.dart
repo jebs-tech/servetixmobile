@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart'; //
+import 'package:pbp_django_auth/pbp_django_auth.dart'; //
+
 import '../../matches/data/match_api.dart';
 import '../../matches/data/match_detail_model.dart';
+import '../data/checkout_api.dart'; // Pastikan path ke checkout_api.dart benar
 
 // Model sederhana untuk menampung data input tiap tiket
 class PassengerInput {
@@ -12,7 +16,7 @@ class PassengerInput {
   String gender = ""; // "Laki-laki" atau "Perempuan"
   String? selectedCategory;
   int price = 0;
-  String? seatLabel; // Digunakan jika kursi sudah dipilih sebelumnya
+  String? seatLabel; 
   int? seatId;
 
   PassengerInput({this.selectedCategory, this.price = 0, this.seatLabel, this.seatId});
@@ -20,7 +24,7 @@ class PassengerInput {
 
 class CheckoutPage extends StatefulWidget {
   final int matchId;
-  final List<int> selectedSeatIds; // Dari denah stadion
+  final List<int> selectedSeatIds; 
 
   const CheckoutPage({
     super.key,
@@ -33,7 +37,6 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  // Konstanta Warna (Identik dengan Django/Tailwind)
   static const Color serveNavy = Color(0xFF1A2A4B);
   static const Color brandOrange = Color(0xFFFFA043);
   static const Color gray50 = Color(0xFFF9FAFB);
@@ -47,15 +50,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   void initState() {
     super.initState();
+    // Mengambil data awal menggunakan instance request dari context
     _dataFuture = _loadInitialData();
   }
 
-  // Mengambil data Match dan Kategori sekaligus
   Future<Map<String, dynamic>> _loadInitialData() async {
-    final match = await MatchApi().fetchMatchDetail(widget.matchId);
-    final seats = await MatchApi().fetchMatchSeats(widget.matchId);
+    // Mengambil CookieRequest dari Provider
+    final request = context.read<CookieRequest>();
     
-    // Ambil daftar kategori unik dari data kursi untuk dropdown
+    // Sinkronisasi dengan update MatchApi yang membutuhkan parameter request
+    final match = await MatchApi().fetchMatchDetail(request, widget.matchId);
+    final seats = await MatchApi().fetchMatchSeats(request, widget.matchId);
+    
     final categories = <String, int>{};
     for (var s in seats) {
       categories[s['category']] = s['price'];
@@ -65,7 +71,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         .map((e) => {'name': e.key, 'price': e.value})
         .toList();
 
-    // Inisialisasi form berdasarkan kursi yang dipilih (jika ada)
     if (widget.selectedSeatIds.isNotEmpty) {
       for (var sid in widget.selectedSeatIds) {
         final seat = seats.firstWhere((s) => s['id'] == sid);
@@ -77,7 +82,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ));
       }
     } else {
-      // Default 1 tiket kosong jika tidak ada kursi dipilih
       _passengers.add(PassengerInput());
     }
 
@@ -88,29 +92,98 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return _passengers.fold(0, (sum, p) => sum + p.price);
   }
 
-  void _addTicket() {
-    setState(() {
-      _passengers.add(PassengerInput());
-    });
-  }
-
-  void _removeLastTicket() {
-    if (_passengers.length > 1) {
-      setState(() {
-        _passengers.removeLast();
-      });
-    }
-  }
-
   String _formatCurrency(int amount) {
     return NumberFormat.currency(locale: 'id', symbol: 'Rp', decimalDigits: 0)
         .format(amount);
   }
 
+  // --- LOGIKA SUBMIT KE API MENGGUNAKAN COOKIEREQUEST ---
+  Future<void> _submitCheckout() async {
+    final request = context.read<CookieRequest>();
+
+    // Validasi input
+    for (var p in _passengers) {
+      if (p.nameController.text.isEmpty || p.selectedCategory == null || p.gender.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Mohon lengkapi data semua tiket.")),
+        );
+        return;
+      }
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Menyiapkan data penumpang untuk payload API
+      final List<Map<String, dynamic>> passengerData = _passengers.map((p) => {
+        'name': p.nameController.text,
+        'email': p.emailController.text,
+        'phone': p.phoneController.text,
+        'gender': p.gender,
+        'category': p.selectedCategory,
+      }).toList();
+
+      Map<String, dynamic> result;
+
+      if (widget.selectedSeatIds.isNotEmpty) {
+        // Gunakan CheckoutApi untuk booking kursi spesifik
+        result = await CheckoutApi().bookSeats(
+          request,
+          matchId: widget.matchId,
+          seatIds: widget.selectedSeatIds,
+          passengers: passengerData,
+        );
+      } else {
+        // Gunakan CheckoutApi untuk booking berdasarkan jumlah
+        result = await CheckoutApi().bookQuantity(
+          request,
+          matchId: widget.matchId,
+          passengers: passengerData,
+        );
+      }
+
+      // Mengecek flag 'ok' atau 'success' sesuai response dari views.py Django
+      if ((result['ok'] == true || result['status'] == 'success') && mounted) {
+        _showSuccessDialog();
+      } else {
+        throw result['msg'] ?? result['detail'] ?? "Gagal memproses pesanan.";
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Terjadi kesalahan: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Berhasil!"),
+        content: const Text("Pesanan Anda telah berhasil dibuat. Silakan cek menu pesanan untuk detail pembayaran."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst), 
+            child: const Text("OK")
+          )
+        ],
+      ),
+    );
+  }
+
+  // ... (Widget Builder dan Helper UI tetap sama seperti kode Anda sebelumnya) ...
+
+  void _addTicket() { setState(() => _passengers.add(PassengerInput())); }
+  void _removeLastTicket() { if (_passengers.length > 1) setState(() => _passengers.removeLast()); }
+
   @override
   Widget build(BuildContext context) {
+    // UI Code (Tetap sama seperti yang Anda berikan)
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6), // gray-100
+      backgroundColor: const Color(0xFFF3F4F6),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _dataFuture,
         builder: (context, snapshot) {
@@ -130,137 +203,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- Tombol Kembali ---
                       TextButton.icon(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.arrow_back, size: 16, color: serveNavy),
-                        label: Text("Kembali ke ${match.title}",
-                            style: const TextStyle(color: serveNavy, fontSize: 14)),
+                        label: Text("Kembali ke ${match.title}", style: const TextStyle(color: serveNavy, fontSize: 14)),
                       ),
                       const SizedBox(height: 16),
-
-                      // --- Judul Halaman ---
-                      const Text(
-                        "Detail Pembeli",
-                        style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: serveNavy),
-                      ),
+                      const Text("Detail Pembeli", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: serveNavy)),
                       const SizedBox(height: 24),
-
-                      // --- Card Utama (Form) ---
                       Container(
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            )
-                          ],
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                         ),
-                        padding: const EdgeInsets.all(24),
                         child: Column(
                           children: [
-                            // List Form Penumpang
-                            ..._passengers.asMap().entries.map((entry) {
-                              return _buildPassengerForm(entry.key, entry.value);
-                            }).toList(),
-
-                            const SizedBox(height: 16),
-
-                            // Tombol Tambah/Hapus (Hanya muncul jika tidak pilih kursi spesifik)
+                            ..._passengers.asMap().entries.map((entry) => _buildPassengerForm(entry.key, entry.value)).toList(),
                             if (widget.selectedSeatIds.isEmpty)
                               Row(
                                 children: [
-                                  _actionButton(
-                                    label: "➕ Tambah Tiket",
-                                    onPressed: _addTicket,
-                                    isPrimary: true,
-                                  ),
+                                  _actionButton(label: "➕ Tambah Tiket", onPressed: _addTicket, isPrimary: true),
                                   const SizedBox(width: 8),
-                                  _actionButton(
-                                    label: "🗑️ Hapus",
-                                    onPressed: _removeLastTicket,
-                                    isPrimary: false,
-                                  ),
+                                  _actionButton(label: "🗑️ Hapus", onPressed: _removeLastTicket, isPrimary: false),
                                   const Spacer(),
-                                  Text("${_passengers.length} tiket",
-                                      style: const TextStyle(color: Colors.grey)),
+                                  Text("${_passengers.length} tiket", style: const TextStyle(color: Colors.grey)),
                                 ],
                               ),
-
                             const SizedBox(height: 24),
-
-                            // --- Ringkasan Harga ---
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: gray50,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Flexible(
-                                        child: Text(
-                                          "Harga per tiket (berdasarkan kategori)",
-                                          style: TextStyle(fontSize: 12, color: gray600),
-                                        ),
-                                      ),
-                                      Text(
-                                        _passengers.length == 1 
-                                            ? _formatCurrency(_passengers[0].price)
-                                            : "Terlampir",
-                                        style: const TextStyle(fontWeight: FontWeight.w500),
-                                      ),
-                                    ],
-                                  ),
-                                  const Divider(height: 24),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text("Total",
-                                          style: TextStyle(color: gray600)),
-                                      Text(_formatCurrency(_totalPrice),
-                                          style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black)),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
+                            _buildPriceSummary(),
                             const SizedBox(height: 32),
-
-                            // --- Tombol Submit ---
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                onPressed: _isSubmitting ? null : _submitCheckout,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: brandOrange,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(100)),
-                                  elevation: 0,
-                                ),
-                                child: _isSubmitting
-                                    ? const CircularProgressIndicator(color: Colors.white)
-                                    : const Text("Lanjutkan Pembayaran",
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16)),
-                              ),
-                            ),
+                            _buildSubmitButton(),
                           ],
                         ),
                       ),
@@ -275,7 +249,53 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // Widget Form per Penumpang
+  Widget _buildPriceSummary() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: gray50, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Flexible(child: Text("Harga per tiket (berdasarkan kategori)", style: TextStyle(fontSize: 12, color: gray600))),
+              Text(_passengers.length == 1 ? _formatCurrency(_passengers[0].price) : "Terlampir", style: const TextStyle(fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Total", style: TextStyle(color: gray600)),
+              Text(_formatCurrency(_totalPrice), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: _isSubmitting ? null : _submitCheckout,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: brandOrange,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+          elevation: 0,
+        ),
+        child: _isSubmitting
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text("Lanjutkan Pembayaran", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+      ),
+    );
+  }
+
+  // (Helper widget _buildPassengerForm, _buildTextField, _genderButton, _actionButton diletakkan di sini...)
+  // ... (Sesuai dengan kode UI Anda sebelumnya) ...
+  
   Widget _buildPassengerForm(int index, PassengerInput input) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -290,14 +310,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Tiket #${index + 1}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(
-                input.seatLabel != null 
-                    ? "Kursi: ${input.seatLabel}" 
-                    : "Isilah data pembeli",
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
+              Text("Tiket #${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(input.seatLabel != null ? "Kursi: ${input.seatLabel}" : "Isilah data pembeli", style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
           const SizedBox(height: 16),
@@ -307,9 +321,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           const SizedBox(height: 12),
           _buildTextField("Nomor Telepon (opsional)", input.phoneController, "0812..."),
           const SizedBox(height: 16),
-          
-          const Text("Jenis Kelamin", 
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const Text("Jenis Kelamin", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -319,46 +331,40 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ],
           ),
           const SizedBox(height: 16),
-
-          const Text("Kategori Tempat Duduk", 
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const Text("Kategori Tempat Duduk", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          
-          // Dropdown Kategori
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                value: input.selectedCategory,
-                hint: const Text("Pilih kategori"),
-                disabledHint: Text(input.selectedCategory ?? ""),
-                // Jika sudah pilih kursi di denah, dropdown dikunci (disabled)
-                onChanged: input.seatId != null ? null : (val) {
-                  setState(() {
-                    input.selectedCategory = val;
-                    input.price = _availableCategories.firstWhere((c) => c['name'] == val)['price'];
-                  });
-                },
-                items: _availableCategories.map((cat) {
-                  return DropdownMenuItem<String>(
-                    value: cat['name'],
-                    child: Text("${cat['name']} — ${_formatCurrency(cat['price'])}"),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
+          _buildCategoryDropdown(input),
         ],
       ),
     );
   }
 
-  // Helper UI Components
+  Widget _buildCategoryDropdown(PassengerInput input) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: input.selectedCategory,
+          hint: const Text("Pilih kategori"),
+          onChanged: input.seatId != null ? null : (val) {
+            setState(() {
+              input.selectedCategory = val;
+              input.price = _availableCategories.firstWhere((c) => c['name'] == val)['price'];
+            });
+          },
+          items: _availableCategories.map((cat) {
+            return DropdownMenuItem<String>(
+              value: cat['name'],
+              child: Text("${cat['name']} — ${_formatCurrency(cat['price'])}"),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField(String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,10 +377,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             hintText: hint,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
           ),
         ),
       ],
@@ -391,11 +394,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           side: BorderSide(color: isSelected ? brandOrange : Colors.grey.shade300),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
         ),
-        child: Text(value, 
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.black,
-              fontSize: 13,
-            )),
+        child: Text(value, style: TextStyle(color: isSelected ? Colors.white : Colors.black, fontSize: 13)),
       ),
     );
   }
@@ -410,62 +409,5 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
       child: Text(label, style: TextStyle(color: isPrimary ? Colors.white : Colors.black, fontSize: 12)),
     );
-  }
-
-  // Logika Submit ke API
-  Future<void> _submitCheckout() async {
-    // Validasi sederhana
-    for (var p in _passengers) {
-      if (p.nameController.text.isEmpty || p.selectedCategory == null || p.gender.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Mohon lengkapi data semua tiket.")),
-        );
-        return;
-      }
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      // Menyiapkan body sesuai logic Django
-      final List<Map<String, dynamic>> passengerData = _passengers.map((p) => {
-        'name': p.nameController.text,
-        'email': p.emailController.text,
-        'phone': p.phoneController.text,
-        'gender': p.gender,
-        'category': p.selectedCategory,
-      }).toList();
-
-      // Pilih endpoint berdasarkan apakah ada seat_ids
-      bool success = false;
-      if (widget.selectedSeatIds.isNotEmpty) {
-        // Panggil api_book (BookWithSeatsAPI)
-        // success = await MatchApi().bookWithSeats(...);
-      } else {
-        // Panggil api_book_quantity (BookByQuantityAPI)
-        // success = await MatchApi().bookByQuantity(...);
-      }
-
-      // Simulasi sukses
-      await Future.delayed(const Duration(seconds: 2));
-      success = true;
-
-      if (success && mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text("Berhasil!"),
-            content: const Text("Pesanan Anda telah berhasil dibuat."),
-            actions: [
-              TextButton(onPressed: () => Navigator.popUntil(context, (route) => route.isFirst), child: const Text("OK"))
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Terjadi kesalahan: $e")));
-    } finally {
-      setState(() => _isSubmitting = false);
-    }
   }
 }
