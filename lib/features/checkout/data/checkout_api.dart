@@ -1,24 +1,14 @@
-import 'dart:io'; // Untuk mengecek Platform.isAndroid
-import 'package:flutter/foundation.dart'; // Untuk mengecek kIsWeb
 import 'package:pbp_django_auth/pbp_django_auth.dart';
 import 'models/seat_model.dart';
 
 class CheckoutApi {
-  // Getter dinamis untuk menentukan URL berdasarkan platform
-  static String get _baseUrl {
-    if (kIsWeb) {
-      // Jika dijalankan di browser (localhost)
-      return 'http://127.0.0.1:8000/api';
-    } else if (Platform.isAndroid) {
-      // Jika dijalankan di Android Emulator (IP khusus untuk akses localhost komputer)
-      return 'http://10.0.2.2:8000/api';
-    }
-    // Default untuk Windows/Desktop/Lainnya
-    return 'http://127.0.0.1:8000/api';
-  }
+  // Menggunakan 127.0.0.1 agar konsisten dengan MatchApi sebelumnya
+  static const String _baseUrl = 'http://127.0.0.1:8000/api';
 
   /// 1. Mengambil daftar kursi
+  /// Sinkron dengan: path('<int:match_id>/seats/', MatchSeatsAPI)
   Future<List<Seat>> fetchSeats(CookieRequest request, int matchId) async {
+    // CookieRequest.get mengembalikan Map yang sudah di-decode
     final response = await request.get('$_baseUrl/$matchId/seats/');
 
     if (response != null && response.containsKey('seats')) {
@@ -31,6 +21,7 @@ class CheckoutApi {
   }
 
   /// 2. Booking berdasarkan jumlah (Auto Allocation)
+  /// Sinkron dengan: path('book-quantity/', BookByQuantityAPI)
   Future<Map<String, dynamic>> bookQuantity(
     CookieRequest request, {
     required int matchId,
@@ -44,11 +35,13 @@ class CheckoutApi {
       'buyer_email': passengers.first['email'] ?? "",
     };
 
+    // CookieRequest.post mengirimkan Map sebagai JSON secara otomatis
     final response = await request.post('$_baseUrl/book-quantity/', payload);
     return response;
   }
 
   /// 3. Booking berdasarkan kursi spesifik
+  /// Sinkron dengan: path('book/', BookWithSeatsAPI)
   Future<Map<String, dynamic>> bookSeats(
     CookieRequest request, {
     required int matchId,
