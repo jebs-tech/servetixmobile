@@ -105,6 +105,8 @@ Seluruh data berpindah menggunakan format **JSON**.
 
 ## 📱 **Tautan APK (Release)**
 
+## 🎨 **Link Video Promosi**
+https://drive.google.com/file/d/1sxMvk6fOkurUi20h8j0yQdtaKzm5joZO/view?usp=sharing
 
 # 📅 **Rencana Kerja Per Pekan (17 Nov – 21 Des 2025)**
 
