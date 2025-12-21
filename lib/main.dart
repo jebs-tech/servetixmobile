@@ -12,6 +12,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Menggunakan Provider untuk menyediakan CookieRequest ke seluruh aplikasi
     return Provider(
       create: (_) {
         CookieRequest request = CookieRequest();
@@ -19,25 +20,32 @@ class MyApp extends StatelessWidget {
       },
       child: MaterialApp(
         title: 'ServeTix Mobile',
+        debugShowCheckedModeBanner: false, // Menghilangkan banner debug
         theme: ThemeData(
-          primaryColor: const Color(0xFFF6CA50),
-          colorScheme: const ColorScheme.light(
-            primary: Color(0xFFF6CA50),
-            secondary: Color(0xFF3B528D),
-            background: Colors.white,
+          useMaterial3: true,
+          fontFamily: 'Inter',
+          
+          // Konfigurasi Warna
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF3B528D),
+            primary: const Color(0xFFF6CA50),
+            secondary: const Color(0xFF3B528D),
             surface: Colors.white,
           ),
-          fontFamily: 'Inter',
+
+          // Tema AppBar
           appBarTheme: const AppBarTheme(
             backgroundColor: Color(0xFF3B528D),
             foregroundColor: Colors.white,
             centerTitle: true,
             elevation: 0,
           ),
+
+          // Tema Button
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF6CA50),
-              foregroundColor: const Color(0xFF1e2c4f),
+              foregroundColor: const Color(0xFF1E2C4F),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -48,8 +56,8 @@ class MyApp extends StatelessWidget {
               ),
             ),
           ),
-          useMaterial3: true,
         ),
+        // Halaman Utama
         home: MyHomePage(),
       ),
     );

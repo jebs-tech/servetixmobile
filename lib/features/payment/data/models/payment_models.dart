@@ -1,4 +1,4 @@
-// Models untuk Payment Module
+// lib/features/payment/data/models/payment_models.dart
 
 class SeatCategory {
   final int id;
@@ -16,9 +16,10 @@ class SeatCategory {
   factory SeatCategory.fromJson(Map<String, dynamic> json) {
     return SeatCategory(
       id: json['id'],
-      name: json['name'],
-      price: json['price'],
-      color: json['color'] ?? '#d3a15a',
+      name: json['name']?.toString() ?? 'Unknown',
+      // Pastikan price selalu int, meskipun server mengirim string
+      price: json['price'] is String ? int.tryParse(json['price']) ?? 0 : json['price'] ?? 0,
+      color: json['color']?.toString() ?? '#d3a15a',
     );
   }
 }
@@ -52,17 +53,24 @@ class Pembelian {
 
   factory Pembelian.fromJson(Map<String, dynamic> json) {
     return Pembelian(
-      orderId: json['order_id']?.toString() ?? '',
-      namaLengkapPembeli: json['nama_lengkap_pembeli'] ?? '',
-      email: json['email'] ?? '',
-      nomorTelepon: json['nomor_telepon'] ?? '',
-      totalPrice: json['total_price'] ?? 0,
-      status: json['status'] ?? '',
-      statusDisplay: json['status_display'] ?? '',
-      metodePembayaran: json['metode_pembayaran'],
-      tanggalPembelian: json['tanggal_pembelian'],
+      // [PENTING] Gunakan .toString() di sini untuk mencegah error Int vs String
+      orderId: json['order_id']?.toString() ?? '', 
+      namaLengkapPembeli: json['nama_lengkap_pembeli']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      // Nomor telepon sering dikirim sebagai Int oleh Django, paksa jadi String
+      nomorTelepon: json['nomor_telepon']?.toString() ?? '', 
+      
+      // Handle Total Price (bisa Int atau String angka)
+      totalPrice: json['total_price'] is String 
+          ? int.tryParse(json['total_price']) ?? 0 
+          : json['total_price'] ?? 0,
+          
+      status: json['status']?.toString() ?? '',
+      statusDisplay: json['status_display']?.toString() ?? '',
+      metodePembayaran: json['metode_pembayaran']?.toString(),
+      tanggalPembelian: json['tanggal_pembelian']?.toString(),
       match: json['match'] != null ? MatchInfo.fromJson(json['match']) : null,
-      kodeVoucher: json['kode_voucher'],
+      kodeVoucher: json['kode_voucher']?.toString(),
     );
   }
 }
@@ -83,9 +91,9 @@ class MatchInfo {
   factory MatchInfo.fromJson(Map<String, dynamic> json) {
     return MatchInfo(
       id: json['id'],
-      title: json['title'],
-      venue: json['venue'],
-      startTime: json['start_time'],
+      title: json['title']?.toString() ?? 'Unknown Match',
+      venue: json['venue']?.toString(),
+      startTime: json['start_time']?.toString(),
     );
   }
 }
@@ -108,10 +116,11 @@ class Ticket {
   factory Ticket.fromJson(Map<String, dynamic> json) {
     return Ticket(
       seatId: json['seat_id'],
-      seat: json['seat'],
-      category: json['category'],
-      qrUrl: json['qr_url'],
-      qrData: json['qr_data'],
+      // Seat mungkin angka (misal: 101), paksa jadi string
+      seat: json['seat']?.toString() ?? '', 
+      category: json['category']?.toString() ?? '',
+      qrUrl: json['qr_url']?.toString(),
+      qrData: json['qr_data']?.toString() ?? '',
     );
   }
 }
@@ -144,8 +153,8 @@ class PaymentResponse {
     }
 
     return PaymentResponse(
-      status: json['status'] ?? '',
-      message: json['message'],
+      status: json['status']?.toString() ?? '',
+      message: json['message']?.toString(),
       orderId: json['data']?['order_id']?.toString(),
       matchTitle: json['data']?['match_title']?.toString(),
       matchVenue: json['data']?['match_venue']?.toString(),
@@ -172,12 +181,15 @@ class VoucherResponse {
 
   factory VoucherResponse.fromJson(Map<String, dynamic> json) {
     return VoucherResponse(
-      status: json['status'],
-      message: json['message'],
-      discountAmount: json['discount_amount']?.toDouble(),
-      newTotal: json['new_total']?.toDouble(),
-      code: json['code'],
+      status: json['status']?.toString() ?? '',
+      message: json['message']?.toString(),
+      discountAmount: json['discount_amount'] is int 
+          ? (json['discount_amount'] as int).toDouble() 
+          : json['discount_amount']?.toDouble(),
+      newTotal: json['new_total'] is int 
+          ? (json['new_total'] as int).toDouble() 
+          : json['new_total']?.toDouble(),
+      code: json['code']?.toString(),
     );
   }
 }
-

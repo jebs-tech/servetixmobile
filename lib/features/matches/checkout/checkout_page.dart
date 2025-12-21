@@ -54,9 +54,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     setState(() {
       loading = false;
+      // FIX: Gunakan .toString() agar aman jika msg berupa angka/null
       message = res['ok'] == true
           ? 'Booking berhasil #${res['booking_id']}'
-          : res['msg'] ?? 'Gagal booking';
+          : (res['msg']?.toString() ?? 'Gagal booking'); 
     });
   }
 

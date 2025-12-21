@@ -1,47 +1,41 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
-import 'models/seat_model.dart';
 
 class CheckoutApi {
-  // Menggunakan 127.0.0.1 agar konsisten dengan MatchApi sebelumnya
-  static const String _baseUrl = 'http://127.0.0.1:8000/api';
-
-  /// 1. Mengambil daftar kursi
-  /// Sinkron dengan: path('<int:match_id>/seats/', MatchSeatsAPI)
-  Future<List<Seat>> fetchSeats(CookieRequest request, int matchId) async {
-    // CookieRequest.get mengembalikan Map yang sudah di-decode
-    final response = await request.get('$_baseUrl/$matchId/seats/');
-
-    if (response != null && response.containsKey('seats')) {
-      return (response['seats'] as List)
-          .map((e) => Seat.fromJson(e))
-          .toList();
-    } else {
-      throw Exception('Gagal memuat data kursi');
-    }
+  // Getter dinamis untuk mendukung Android Emulator (10.0.2.2) dan Web/Desktop (127.0.0.1)
+  static String get _baseUrl {
+    if (kIsWeb) return 'http://127.0.0.1:8000';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8000';
+    return 'http://127.0.0.1:8000';
   }
 
-  /// 2. Booking berdasarkan jumlah (Auto Allocation)
-  /// Sinkron dengan: path('book-quantity/', BookByQuantityAPI)
-  Future<Map<String, dynamic>> bookQuantity(
+  /// 1. Simpan Pembelian Utama (Sinkron dengan api_simpan_pembelian di payment/views.py)
+  /// Digunakan saat "Lanjutkan Pembayaran" ditekan untuk membuat Order ID.
+  Future<Map<String, dynamic>> saveOrder(
     CookieRequest request, {
     required int matchId,
-    required List passengers,
+    required int categoryId,
+    required String namaLengkap,
+    required String email,
+    required String nomorTelepon,
+    required List tickets,
   }) async {
     final payload = {
       'match_id': matchId,
-      'quantity': passengers.length,
-      'passengers': passengers,
-      'buyer_name': passengers.first['name'],
-      'buyer_email': passengers.first['email'] ?? "",
+      'kategori_id': categoryId,
+      'nama_lengkap': namaLengkap,
+      'email': email,
+      'nomor_telepon': nomorTelepon,
+      'tickets': tickets,
     };
 
-    // CookieRequest.post mengirimkan Map sebagai JSON secara otomatis
-    final response = await request.post('$_baseUrl/book-quantity/', payload);
+    // Pastikan path URL sesuai dengan yang terdaftar di urls.py Django Anda
+    final response = await request.post('$_baseUrl/payment/api/save-order/', payload);
     return response;
   }
 
-  /// 3. Booking berdasarkan kursi spesifik
-  /// Sinkron dengan: path('book/', BookWithSeatsAPI)
+  /// 2. Booking berdasarkan kursi spesifik (Path: /api/book/)
   Future<Map<String, dynamic>> bookSeats(
     CookieRequest request, {
     required int matchId,
@@ -55,8 +49,22 @@ class CheckoutApi {
       'buyer_name': passengers.first['name'],
       'buyer_email': passengers.first['email'] ?? "",
     };
+    return await request.post('$_baseUrl/api/book/', payload);
+  }
 
-    final response = await request.post('$_baseUrl/book/', payload);
-    return response;
+  /// 3. Booking berdasarkan jumlah (Path: /api/book-quantity/)
+  Future<Map<String, dynamic>> bookQuantity(
+    CookieRequest request, {
+    required int matchId,
+    required List passengers,
+  }) async {
+    final payload = {
+      'match_id': matchId,
+      'quantity': passengers.length,
+      'passengers': passengers,
+      'buyer_name': passengers.first['name'],
+      'buyer_email': passengers.first['email'] ?? "",
+    };
+    return await request.post('$_baseUrl/api/book-quantity/', payload);
   }
 }

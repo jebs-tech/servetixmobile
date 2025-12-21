@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Tambahan untuk context.read
-import 'package:pbp_django_auth/pbp_django_auth.dart'; // Tambahan untuk CookieRequest
+import 'package:provider/provider.dart'; // Untuk context.read<CookieRequest>
+import 'package:pbp_django_auth/pbp_django_auth.dart'; // Untuk CookieRequest
 
+// --- IMPORTS ---
 import '../data/match_api.dart';
 import '../data/match_detail_model.dart';
-import '../../checkout/presentation/checkout_page.dart';
-// Import widget denah stadium yang telah dipisahkan
+// [PENTING] Mengarah langsung ke Detail Pembeli
+import '../../payment/presentation/detail_pembeli_page.dart';
+// Widget Denah Kursi (Hanya Visualisasi)
 import 'stadium_seating.dart'; 
 
 class MatchDetailPage extends StatefulWidget {
@@ -18,36 +20,49 @@ class MatchDetailPage extends StatefulWidget {
 }
 
 class _MatchDetailPageState extends State<MatchDetailPage> {
-  // Kita menggunakan Future.wait untuk mengambil Detail Match dan Data Kursi sekaligus
+  // Future gabungan untuk mengambil Detail Match dan Data Kursi secara paralel
   late Future<List<dynamic>> _combinedFuture;
 
-  // --- KONFIGURASI WARNA SESUAI BASE.HTML DJANGO ---
+  // --- KONFIGURASI WARNA (Sesuai tema Django/Web) ---
   static const Color brandDarkBlue = Color(0xFF1A2A4B);
-  static const Color navBlue = Color(0xFF1E2C4F); // bg-[#1e2c4f]
-  static const Color brandGold = Color(0xFFF6CA50); // #f6ca50
+  static const Color navBlue = Color(0xFF1E2C4F); 
+  static const Color brandGold = Color(0xFFF6CA50); 
   static const Color brandOrange = Color(0xFFFFA043);
-  static const Color brandCream = Color(0xFFFDF4D9); // #fdf4d9
-  static const Color gradientStart = Color(0xFFFFFFFF); // to-[#FFFFFF]
-  static const Color gradientEnd = Color(0xFFFADF95);   // from-[#FADF95]
+  static const Color brandCream = Color(0xFFFDF4D9); 
+  static const Color gradientStart = Color(0xFFFFFFFF); 
+  static const Color gradientEnd = Color(0xFFFADF95);   
   static const Color amber100 = Color(0xFFFFF3C4);
 
   @override
   void initState() {
     super.initState();
-    // Mengambil instance CookieRequest dari Provider
     final request = context.read<CookieRequest>();
     
-    // Mengambil data detail dan data kursi secara paralel dengan menyertakan request
+    // Mengambil data Match dan Seats sekaligus agar loading lebih cepat
     _combinedFuture = Future.wait([
       MatchApi().fetchMatchDetail(request, widget.matchId),
       MatchApi().fetchMatchSeats(request, widget.matchId),
     ]);
   }
 
+  /// Fungsi navigasi langsung ke halaman Detail Pembeli (Mode Auto-Allocation)
+  void _buyTicket() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetailPembeliPage(
+          matchId: widget.matchId,
+          // Mengirim list kosong berarti user akan memilih jumlah tiket (bukan kursi spesifik)
+          selectedSeatIds: const [], 
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // --- NAVIGATION BAR (APPBAR) SESUAI DJANGO ---
+      // --- APP BAR ---
       appBar: AppBar(
         backgroundColor: navBlue,
         elevation: 4,
@@ -71,8 +86,9 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
         ),
         centerTitle: true,
       ),
+      
+      // --- BODY WITH GRADIENT BACKGROUND ---
       body: Container(
-        // --- GRADIENT BACKGROUND SESUAI BODY DJANGO ---
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -83,21 +99,25 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
         child: FutureBuilder<List<dynamic>>(
           future: _combinedFuture,
           builder: (context, snapshot) {
+            // State: Loading
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator(color: brandDarkBlue));
             }
+            // State: Error
             if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
             }
+            // State: Empty
             if (!snapshot.hasData) {
-              return const Center(child: Text('Data tidak ditemukan'));
+              return const Center(child: Text('Data pertandingan tidak ditemukan'));
             }
 
-            // Data dari Future.wait
+            // Ekstrak Data dari Future.wait
             final MatchDetail match = snapshot.data![0];
             final List<dynamic> allSeats = snapshot.data![1];
 
-            // Filter label kursi yang sudah di-book (is_booked == true) dari Django
+            // Filter label kursi yang sudah dibooking (is_booked == true)
+            // Data ini dikirim ke StadiumSeatingChart untuk visualisasi warna (misal: hitam/abu)
             final List<String> bookedLabels = allSeats
                 .where((s) => s['is_booked'] == true)
                 .map((s) => s['label'].toString())
@@ -105,6 +125,7 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
 
             return LayoutBuilder(
               builder: (context, constraints) {
+                // Responsive Logic
                 final isWide = constraints.maxWidth >= 900;
                 final isSm = constraints.maxWidth >= 640;
 
@@ -116,7 +137,7 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // --- TITLE SECTION ---
+                          // --- MATCH TITLE & VENUE ---
                           Text(
                             match.title,
                             style: const TextStyle(
@@ -139,11 +160,11 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                           ),
                           const SizedBox(height: 24),
 
-                          // --- MATCH CARD ---
+                          // --- MATCH SCORE CARD ---
                           _matchCard(match, isSm),
                           const SizedBox(height: 24),
 
-                          // --- INFO & BUY SECTION ---
+                          // --- INFO & BUY BUTTON SECTION ---
                           isWide
                               ? IntrinsicHeight(
                                   child: Row(
@@ -164,7 +185,7 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                                 ),
                           const SizedBox(height: 24),
 
-                          // --- EXPERIENCE & CATEGORY SECTION ---
+                          // --- EXPERIENCE & PRICE CATEGORY SECTION ---
                           isWide
                               ? IntrinsicHeight(
                                   child: Row(
@@ -185,7 +206,8 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                                 ),
                           const SizedBox(height: 32),
 
-                          // --- SEAT MAP SECTION (Koneksi ke bookedLabels) ---
+                          // --- SEAT MAP SECTION (Visual Only) ---
+                          // Kita kirim bookedLabels agar kursi yang terisi warnanya beda
                           _seatMapCard(bookedLabels),
                         ],
                       ),
@@ -201,7 +223,7 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
   }
 
   // ==================================================
-  // WIDGET HELPERS
+  // WIDGET HELPERS (Cards & UI Components)
   // ==================================================
 
   Widget _matchCard(MatchDetail match, bool isSm) {
@@ -333,13 +355,8 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => CheckoutPage(
-                              matchId: match.id, selectedSeatIds: const [])));
-                },
+                // [PENTING] Memanggil fungsi _buyTicket untuk pindah halaman
+                onPressed: _buyTicket, 
                 style: ElevatedButton.styleFrom(
                   backgroundColor: brandGold,
                   foregroundColor: navBlue,
@@ -348,8 +365,7 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
                       borderRadius: BorderRadius.circular(100)),
                 ),
                 child: const Text('Beli Tiket',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -406,7 +422,6 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
     );
   }
 
-  // Method Seat Map yang menerima data bookedLabels dari API
   Widget _seatMapCard(List<String> bookedLabels) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -427,15 +442,17 @@ class _MatchDetailPageState extends State<MatchDetailPage> {
           ),
           AspectRatio(
             aspectRatio: 1.2,
+            // [VISUALISASI] Mengirim bookedLabels agar kursi terisi berwarna beda
             child: StadiumSeatingChart(
-              bookedSeatLabels: bookedLabels, // Mengirim data kursi hitam ke denah
+              bookedSeatLabels: bookedLabels,
+              // onSeatTap dihapus sesuai permintaan
             ),
           ),
           const Padding(
             padding: EdgeInsets.all(8.0),
             child: Center(
               child: Text(
-                'Gunakan pinch untuk zoom denah. Kursi Hitam sudah dipesan.',
+                'Info: Kursi berwarna gelap sudah dipesan.',
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
             ),
