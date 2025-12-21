@@ -43,8 +43,7 @@ class ProductCard extends StatelessWidget {
         MaterialPageRoute(builder: (context) => const MatchListPage()),
       );
     }
-  }
-  if (item.name == "Forum Penggemar") {
+    if (item.name == "Forum Penggemar") {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const ForumsListPage()),
@@ -56,7 +55,7 @@ class ProductCard extends StatelessWidget {
         MaterialPageRoute(builder: (context) => const DashboardPage()),
       );
     }
-
+  }
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
