@@ -78,3 +78,90 @@ class Ticket {
     );
   }
 }
+
+class PurchaseDetail {
+  final String matchTitle;
+  final String venue;
+  final String date;
+  final int purchaseId;
+  final int totalPrice;
+  final List<SeatItem> tickets;
+
+  PurchaseDetail({
+    required this.matchTitle,
+    required this.venue,
+    required this.date,
+    required this.purchaseId,
+    required this.totalPrice,
+    required this.tickets,
+  });
+
+  factory PurchaseDetail.fromJson(Map<String, dynamic> json) {
+    var list = json['tickets'] as List;
+    List<SeatItem> ticketsList = list.map((i) => SeatItem.fromJson(i)).toList();
+
+    return PurchaseDetail(
+      matchTitle: json['match_title'],
+      venue: json['venue'],
+      date: json['date'],
+      purchaseId: json['purchase_id'],
+      totalPrice: json['total_price'] ?? 0,
+      tickets: ticketsList,
+    );
+  }
+}
+
+class SeatItem {
+  final int id; // Ini ticket_id / seat_id
+  final String row;
+  final String col;
+  final String category;
+  final int price;
+  final String seatCode;
+
+  SeatItem({
+    required this.id,
+    required this.row,
+    required this.col,
+    required this.category,
+    required this.price,
+    required this.seatCode,
+  });
+
+  factory SeatItem.fromJson(Map<String, dynamic> json) {
+    return SeatItem(
+      id: json['id'],
+      row: json['row'].toString(),
+      col: json['col'].toString(),
+      category: json['category'],
+      price: json['price'],
+      seatCode: json['seat_code'],
+    );
+  }
+}
+
+class TicketDetail {
+  final int ticketId;
+  final String matchTitle;
+  final String qrCodeUrl;
+  final String seatCode;
+  final String category;
+
+  TicketDetail({
+    required this.ticketId,
+    required this.matchTitle,
+    required this.qrCodeUrl,
+    required this.seatCode,
+    required this.category,
+  });
+
+  factory TicketDetail.fromJson(Map<String, dynamic> json) {
+    return TicketDetail(
+      ticketId: json['ticket_id'],
+      matchTitle: json['match_title'],
+      qrCodeUrl: json['qr_code_url'] ?? "",
+      seatCode: "${json['row']}${json['col']}",
+      category: json['category'],
+    );
+  }
+}

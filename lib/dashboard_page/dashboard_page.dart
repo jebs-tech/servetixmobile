@@ -9,6 +9,7 @@ import 'package:servetix/forums/forums_list_page.dart';
 import 'package:servetix/notifications/notifications_page.dart';
 import 'package:servetix/utils/toast.dart';
 import 'dart:async';
+import 'package:servetix/dashboard_page/purchase_detail_page.dart';
 import 'dart:convert';
 
 class DashboardPage extends StatefulWidget {
@@ -676,6 +677,14 @@ class _DashboardPageState extends State<DashboardPage> {
                           backgroundColor: Colors.blue,
                           child: Text("${ticket.totalTickets}", style: const TextStyle(color: Colors.white)),
                         ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PurchaseDetailPage(matchId: ticket.id),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },
