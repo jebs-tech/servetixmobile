@@ -717,11 +717,26 @@ class _DashboardPageState extends State<DashboardPage> {
                   itemCount: snapshot.data!.length,
                   itemBuilder: (context, index) {
                     final ticket = snapshot.data![index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.history, color: Colors.grey),
-                      title: Text(ticket.matchTitle),
-                      subtitle: Text(ticket.date),
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      elevation: 0,
+                      color: Colors.grey[100],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey[300]!)),
+                      child: ListTile(
+                        leading: const Icon(Icons.history, color: Colors.grey),
+                        title: Text(ticket.matchTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("${ticket.date} • ${ticket.totalTickets} Tiket"),
+                        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PurchaseDetailPage(matchId: ticket.id),
+                            ),
+                          );
+                        },
+                      ),
                     );
                   },
                 );
