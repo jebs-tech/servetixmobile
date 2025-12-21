@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servetixmobile/auth/login_page.dart';
 import 'package:servetixmobile/features/match/screens/menu.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
 import 'package:provider/provider.dart';
@@ -58,7 +59,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         // Halaman Utama
-        home: MyHomePage(),
+        home: LoginPage(),
       ),
     );
   }
