@@ -103,6 +103,9 @@ Seluruh data berpindah menggunakan format **JSON**.
 ## 🎨 **Link Design (Figma)**
 
 ## 📱 **Tautan APK (Release)**
+ServeTix
+[![Build Status](https://app.bitrise.io/app/2a22c523-f63c-46de-b6c3-5641c66f5f51/status.svg?token=p-GXmJ3TLzLxnUlbBv2E9A&branch=main)](https://app.bitrise.io/app/2a22c523-f63c-46de-b6c3-5641c66f5f51)
+Link Download [Download Apk] https://app.bitrise.io/app/2a22c523-f63c-46de-b6c3-5641c66f5f51/installable-artifacts/9c498acdb31c56de/public-install-page/35fee87787c6ed04b76b052a1eb157ea
 
 ## 🎨 **Link Video Promosi**
 
