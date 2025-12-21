@@ -71,7 +71,7 @@ class LeftDrawer extends StatelessWidget { // Ubah jadi StatelessWidget karena s
               onTap: () async {
                 if (request.loggedIn) {
                   // LOGIKA LOGOUT
-                  final response = await request.logout("http://127.0.0.1:8000/auth/logout/"); // Sesuaikan URL logout Django kamu
+                  final response = await request.logout("http://127.0.0.1:8000/api/logout/"); // Sesuaikan URL logout Django kamu
                   if (response['status']) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Berhasil Logout'), backgroundColor: Colors.red),
